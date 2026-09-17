@@ -1,16 +1,21 @@
 import sqlite3
-import bcrypt
+import secrets
+import hashlib
 
 from setup_db import db_config
 
 db = sqlite3.connect('./db/database.db')
 cursor = db.cursor()
 
-username = "bingo"
-password = 'dingo'.encode('utf-8')
+username = "whatever"
 
-salt = bcrypt.gensalt()
-hash = bcrypt.hashpw(password, salt)
+while True:
+    api_key = secrets.token_urlsafe(32).encode('utf-8')
+    cursor.execute(f"SELECT * FROM bots WHERE api_key = \'{hashlib.sha256(api_key).hexdigest()}\'")
+    if not cursor.fetchone():
+        break
 
-cursor.execute(f"INSERT INTO bots (username,password,salt) VALUES(?,?,?)", (username, hash, salt))
+print(f"API_KEY: {api_key.decode('utf-8')}")
+
+cursor.execute(f"INSERT INTO bots (username,api_key) VALUES(?,?)", (username, hashlib.sha256(api_key).hexdigest()))
 db.commit()

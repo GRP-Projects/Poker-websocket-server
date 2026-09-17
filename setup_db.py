@@ -15,8 +15,7 @@ def db_config():
         CREATE TABLE bots (
             bot_id INTEGER PRIMARY KEY,
             username TEXT UNIQUE,
-            password TEXT,
-            salt TEXT
+            api_key TEXT UNIQUE
         )
     ''')
 
