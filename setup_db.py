@@ -20,8 +20,10 @@ def db_config():
     ''')
 
     cursor.execute('''
-        CREATE TABLE tournaments (
-            tournament_id INTEGER PRIMARY KEY,
+        CREATE TABLE games (
+            game_id INTEGER PRIMARY KEY,
+            winner INTEGER,
+            game TEXT,
             bot_1 INTEGER,
             bot_2 INTEGER,
             bot_3 INTEGER,
@@ -29,17 +31,6 @@ def db_config():
             bot_5 INTEGER,
             bot_6 INTEGER,
             winner INTEGER
-        )
-    ''')
-
-    cursor.execute('''
-        CREATE TABLE games (
-            tournament_id INTEGER,
-            game_id INTEGER,
-            winner INTEGER,
-            game TEXT,
-            FOREIGN KEY(tournament_id) REFERENCES tournaments(tournament_id),
-            PRIMARY KEY (tournament_id, game_id)
         )
     ''')
 
