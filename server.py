@@ -161,10 +161,11 @@ async def handle_request_receive(websocket, db):
                     continue
                 
                 player = game.get_player_from_id(user)
+
+                print(f"Player: {user}")
                 
                 legitimate = False
                 # play : fold = 0, call = 1, raise = 2.
-                print(f"Play by: {user}")
                 match message['play']:
                     case 0:
                         legitimate = game.fold()
@@ -176,20 +177,38 @@ async def handle_request_receive(websocket, db):
                 # If played 3 illigitimate moves, fold.
                 if not legitimate:
                     accumulated_fouls+=1
-                    await broadcast_player_turn(user, game)
                     if accumulated_fouls >= max_fouls:
+                        if game.state.checking_or_calling_amount == 0:
+                            game.call()
                         game.fold()
                         accumulated_fouls = 0
                     else:
+                        await broadcast_player_turn(user, game)
                         continue
                 
-                print(game.turn)
-                input()
-                game.advance_turn()
-                print(game.turn)
-                input()
-                await broadcast_player_turn(game.get_current_player(), game)
+                # Check if lost game
+                if not game.get_player_from_id(user):
+                    # User was eliminated
+                    sessions[user].current_game = -1
+                    await websocket.send(json.dumps({'success': True, 'status': 5, 'type' : 'game', 'info' : f'Your bot has been eliminated from play'}))
+                    continue
+                if game.state.can_deal_board():
+                    # Checks on progressing the game
+                    game.state.deal_board()
 
+                game_over = False
+                while not game.state.status:
+                    print("One loop")
+                    winner = game.end_round()
+                    if winner:
+                        print("Winner!")
+                        del games[game.id]
+                        game_over = True
+                        await websocket.send(json.dumps({'success': True, 'status': 5, 'type' : 'game', 'info' : f'Your bot has won!'}))
+                        break
+                if game_over:
+                    continue
+                await broadcast_player_turn(game.get_current_player(), game)
 
     #except Exception as e:
     #    logger.error(f"An error occured in handling user request. {e}")
