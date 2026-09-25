@@ -60,8 +60,13 @@ class Game:
     
     def _sync_players(self):
         for i in range(0, len(self.players)):
+            # Personal stats
             self.players[i].folded = not self.state.statuses[i]
             self.players[i].money = self.state.stacks[i]
+            self.players[i].cards = [f"{card.rank}{card.suit}" for card in self.state.hole_cards[i]]
+
+            # River
+            self.players[i].river = [str(card) for card in self.state.board_cards]
     
     def fold(self):
         if self.state.can_fold():
@@ -86,6 +91,7 @@ class Game:
         return False
 
     def raise_bet(self, quantity: int):
+        print(f"test {self.state.can_complete_bet_or_raise_to(quantity)}")
         if self.state.can_complete_bet_or_raise_to(quantity):
             player = self.players[self.state.actor_index]
             player_seat = self.state.actor_index
@@ -107,13 +113,20 @@ class Game:
         return None
     
     def end_round(self):
+        eliminated_players = []
+        winner = None
+
         self._sync_players()
         for player in self.players:
             if player.money <= 0:
+                eliminated_players.append(player.player_id)
                 self.players.remove(player)
         if len(self.players) == 1:
-            return self.players[0].player_id
-        self.state = self._new_round()
+            winner = self.players[0].player_id
+        else:
+            self.state = self._new_round()
+
+        return eliminated_players, winner
         
 class Player:
     def __init__(self, player_id: int, money: int, river: list):
@@ -129,7 +142,7 @@ class Player:
             self.cards.append(card)
     
     def get_player_status(self):
-        return (self.cards, self.bet, self.money, self.folded, self.river)
+        return (self.cards, self.bet, self.money, self.folded, self.river, evaluate_cards(self.cards + self.river))
     
     def fold(self):
         self.folded=True

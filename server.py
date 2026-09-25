@@ -65,7 +65,8 @@ async def broadcast_player_turn(user: int, game: Game):
         'bet' : status[1],
         'money' : status[2],
         'folded' : status[3],
-        'river' : status[4]
+        'river' : status[4],
+        'hand_strength' : status[5]
     }
 
     if player:
@@ -81,7 +82,6 @@ def generate_game_id():
 
 async def handle_request_receive(websocket, db):
     user = 0
-    accumulated_fouls = 0
 
     try:
         async for message in websocket:
@@ -134,6 +134,7 @@ async def handle_request_receive(websocket, db):
                         del queue[queue.index(i)]
                     
                     new_game = Game(game_id, starting_money, players, big_blind, small_blind)
+                    print("New game!")
                     games[game_id] = new_game
 
                     await broadcast_to_all(players, json.dumps({'success': True, 'status': 3, 'info': f'In game {game_id}'}))
@@ -153,7 +154,7 @@ async def handle_request_receive(websocket, db):
                 elif sessions[user].current_game == -1:
                     await websocket.send(json.dumps({'success': False, 'status': 2, 'info': 'You are not currently in a game'}))
                     continue
-                
+
                 game = games[sessions[user].current_game]
 
                 if game.get_current_player() != user:
@@ -176,35 +177,23 @@ async def handle_request_receive(websocket, db):
                 
                 # If played 3 illigitimate moves, fold.
                 if not legitimate:
-                    accumulated_fouls+=1
-                    if accumulated_fouls >= max_fouls:
-                        if game.state.checking_or_calling_amount == 0:
-                            game.call()
-                        game.fold()
-                        accumulated_fouls = 0
+                    if game.state.checking_or_calling_amount == 0:
+                        game.call()
                     else:
-                        await broadcast_player_turn(user, game)
-                        continue
-                
-                # Check if lost game
-                if not game.get_player_from_id(user):
-                    # User was eliminated
-                    sessions[user].current_game = -1
-                    await websocket.send(json.dumps({'success': True, 'status': 5, 'type' : 'game', 'info' : f'Your bot has been eliminated from play'}))
-                    continue
-                if game.state.can_deal_board():
-                    # Checks on progressing the game
-                    game.state.deal_board()
+                        game.fold()
 
                 game_over = False
                 while not game.state.status:
-                    print("One loop")
-                    winner = game.end_round()
+                    eliminated, winner = game.end_round()
+
+                    for player in eliminated:
+                        sessions[player].current_game = -1
+                        await sessions[player].socket.send(json.dumps({'success': True, 'status': 5, 'type' : 'game', 'info' : f'Your bot has been eliminated from play'}))
                     if winner:
-                        print("Winner!")
                         del games[game.id]
                         game_over = True
-                        await websocket.send(json.dumps({'success': True, 'status': 5, 'type' : 'game', 'info' : f'Your bot has won!'}))
+                        await sessions[winner].socket.send(json.dumps({'success': True, 'status': 5, 'type' : 'game', 'info' : f'Your bot has won!'}))
+                        sessions[winner].game_id = -1
                         break
                 if game_over:
                     continue
