@@ -7,7 +7,7 @@ from setup_db import db_config
 db = sqlite3.connect('./db/database.db')
 cursor = db.cursor()
 
-username = "whatever"
+username = "flumpyguy"
 
 while True:
     api_key = secrets.token_urlsafe(32).encode('utf-8')

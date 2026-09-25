@@ -186,14 +186,25 @@ async def handle_request_receive(websocket, db):
                 while not game.state.status:
                     eliminated, winner = game.end_round()
 
+                    # Handle all eliminated players
                     for player in eliminated:
                         sessions[player].current_game = -1
                         await sessions[player].socket.send(json.dumps({'success': True, 'status': 5, 'type' : 'game', 'info' : f'Your bot has been eliminated from play'}))
+                    
+                    # Inform winner and end game
                     if winner:
+                        # Record game in database
+                        cursor = await db.execute("INSERT INTO games VALUES (?, ?)", (None, winner))
+                        game_id = cursor.lastrowid
+                        for player_id in game.players_id_persistent:
+                            await db.execute("INSERT INTO bots_games VALUES (?, ?)", (game_id, player_id))
+                        await db.commit()
+                        
                         del games[game.id]
                         game_over = True
                         await sessions[winner].socket.send(json.dumps({'success': True, 'status': 5, 'type' : 'game', 'info' : f'Your bot has won!'}))
                         sessions[winner].game_id = -1
+
                         break
                 if game_over:
                     continue

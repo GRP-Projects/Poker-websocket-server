@@ -22,6 +22,7 @@ class Game:
 
         random.shuffle(players)
         self.players = [Player(i, starting_money, self.river) for i in players]
+        self.players_id_persistent = players
         self.state = self._new_round()
     
     def _new_round(self):
@@ -66,7 +67,7 @@ class Game:
             self.players[i].cards = [f"{card.rank}{card.suit}" for card in self.state.hole_cards[i]]
 
             # River
-            self.players[i].river = [str(card) for card in self.state.board_cards]
+            self.players[i].river = [card for card in self.state.board_cards]
     
     def fold(self):
         if self.state.can_fold():
@@ -142,7 +143,11 @@ class Player:
             self.cards.append(card)
     
     def get_player_status(self):
-        return (self.cards, self.bet, self.money, self.folded, self.river, evaluate_cards(self.cards + self.river))
+        value = 7463
+        if len(self.cards + self.river) >= 5:
+            self.river = [f"{card[0].rank}{card[0].suit}" for card in self.river]
+            value = evaluate_cards(*(self.cards + self.river))
+        return (self.cards, self.bet, self.money, self.folded, self.river, value)
     
     def fold(self):
         self.folded=True

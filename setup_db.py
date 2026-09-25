@@ -23,6 +23,7 @@ def db_config():
         CREATE TABLE games (
             game_id INTEGER PRIMARY KEY,
             winner INTEGER,
+            FOREIGN KEY (winner) REFERENCES bots(bot_id)
         )
     ''')
 
@@ -31,7 +32,7 @@ def db_config():
             game_id INTEGER NOT NULL,
             player_id INTEGER NOT NULL,
             PRIMARY KEY (game_id, player_id),
-            FOREIGN KEY (game_id) REFERENCES games(game_id)
+            FOREIGN KEY (game_id) REFERENCES games(game_id),
             FOREIGN KEY (player_id) REFERENCES bots(bot_id)
         )
     ''')
