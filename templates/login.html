@@ -1,0 +1,16 @@
+<html>
+    <head>
+        <!-- <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"> -->
+    </head>
+    <body>
+        <h3 class = "tx-page-title">Admin sign-in</h3>
+        {% if message %}
+            <p>{{message}}</p>
+        {% endif %}
+        <form method="post">
+            <input type="text" name="password" required>
+            <br><br>
+            <input type="submit" value="Submit">
+        </form>
+    </body>
+</html>

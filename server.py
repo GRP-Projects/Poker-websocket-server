@@ -23,15 +23,26 @@ try:
     starting_money = parser.getint('gamedetails', 'starting_money')
     big_blind = parser.getint('gamedetails', 'big_blind')
     small_blind = parser.getint('gamedetails', 'small_blind')
-    max_fouls = parser.getint('gamedetails', 'max_fouls')
 except Exception as e:
     logger.error("Could not parse config.ini file")
 
 class Session:
-    def __init__(self, socket, bot_id: bot_id, current_game: int):
+    def __init__(self, socket, bot_id: int, current_game: int):
         self.socket = socket
         self.bot_id = bot_id
         self.current_game = current_game
+    
+    def get_status():
+        if self.bot_id in queue:
+            return 2
+        if self.current_game==-1:
+            return 1
+
+        game = games[self.current_game]
+
+        if game.get_current_player() == self.bot_id:
+            return 4
+        return 3
 
 db_config()
 
@@ -86,8 +97,21 @@ async def handle_request_receive(websocket, db):
     try:
         async for message in websocket:
             message = json.loads(message)
+            
+            # Check if "type" is in the input message
+            if 'type' not in message:
+                if user == 0:
+                    await websocket.send(json.dumps({'success': False, 'status': status, 'info': 'Malformed message contents'}))
+                else:
+                    await websocket.send(json.dumps({'success': False, 'status': sessions[user].get_status(), 'info': 'Malformed message contents'}))
+                continue
 
             if message['type'] == 'login':
+
+                if 'api_key' not in message:
+                    await websocket.send(json.dumps({'success': False, 'status': 0, 'info': 'Malformed message contents'}))
+                    continue
+
                 # Handle logins
                 api_key = hashlib.sha256(message['api_key'].encode('utf-8')).hexdigest()
 
@@ -148,6 +172,13 @@ async def handle_request_receive(websocket, db):
 
                 # Has responsibility for initating next player turn as well as executing current player's move.
 
+                if 'play' not in message and game.get_current_player() == user:
+                    await websocket.send(json.dumps({'success': False, 'status': 4, 'info': 'Malformed message contents'}))
+                    continue
+                elif 'play' not in message:
+                    await websocket.send(json.dumps({'success': False, 'status': 3, 'info': 'Malformed message contents'}))
+                    continue
+                
                 if sessions[user].current_game == -1 and (user not in queue):
                     await websocket.send(json.dumps({'success': False, 'status': 1, 'info': 'You are not currently in a game'}))
                     continue
@@ -173,7 +204,11 @@ async def handle_request_receive(websocket, db):
                     case 1:
                         legitimate = game.call()
                     case 2:
-                        legitimate = game.raise_bet(message['raise_quantity'])
+                        if 'raise_quantity' not in message:
+                            await websocket.send(json.dumps({'success': False, 'status': 3, 'info': 'Malformed message contents'}))
+                            legitimate = False
+                        else:
+                            legitimate = game.raise_bet(message['raise_quantity'])
                 
                 # If played 3 illigitimate moves, fold.
                 if not legitimate:
