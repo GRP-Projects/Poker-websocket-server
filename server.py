@@ -244,12 +244,12 @@ async def handle_request_receive(websocket, db):
                 if game_over:
                     continue
                 await broadcast_player_turn(game.get_current_player(), game)
-
-    #except Exception as e:
-    #    logger.error(f"An error occured in handling user request. {e}")
     finally:
-        # If condition here for being currently in-game - if so, TODO: abort entire game.
-        del sessions[user]
+        # If condition here for being currently in-game - if so, eliminate player from game and communism their chips for next round.
+        if user in sessions:
+            game = games[sessions[user].current_game]
+            game.eliminate_and_distribute(user)
+            del sessions[user]
         if user in queue:
             del queue[queue.index(user)]
 

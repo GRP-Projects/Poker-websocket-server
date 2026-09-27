@@ -128,6 +128,13 @@ class Game:
             self.state = self._new_round()
 
         return eliminated_players, winner
+    
+    def eliminate_and_distribute(self, player_id):
+        player = self.get_player_from_id(player_id)
+        if player:
+            for i in self.players:
+                i.money += player.money / len(self.players)
+            self.players.remove(player)
         
 class Player:
     def __init__(self, player_id: int, money: int, river: list):
