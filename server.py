@@ -59,8 +59,8 @@ queue = []
 async def broadcast_to_all(participants, message):
     try:
         participants = [sessions[i] for i in participants]
-        for user in participants:
-            await user.socket.send(message)
+        for player in participants:
+            await player.socket.send(message)
     except Exception as e:
         logger.error("Could not distribute message to all participants.")
 
@@ -73,11 +73,12 @@ async def broadcast_player_turn(user: int, game: Game):
         'success' : True,
         'status' : 4,
         'cards' : status[0],
-        'bet' : status[1],
+        'current_bet' : status[1],
         'money' : status[2],
         'folded' : status[3],
         'river' : status[4],
-        'hand_strength' : status[5]
+        'hand_strength' : status[5],
+        'minimum_bet' : status[6]
     }
 
     if player:
@@ -96,6 +97,7 @@ async def handle_request_receive(websocket, db):
 
     try:
         async for message in websocket:
+            print(f"Anotha {user} : {message}")
             message = json.loads(message)
             
             # Check if "type" is in the input message
@@ -193,8 +195,7 @@ async def handle_request_receive(websocket, db):
                     continue
                 
                 player = game.get_player_from_id(user)
-
-                print(f"Player: {user}")
+                play_made = "folded"
                 
                 legitimate = False
                 # play : fold = 0, call = 1, raise = 2.
@@ -203,22 +204,40 @@ async def handle_request_receive(websocket, db):
                         legitimate = game.fold()
                     case 1:
                         legitimate = game.call()
+                        play_made = "called"
                     case 2:
                         if 'raise_quantity' not in message:
                             await websocket.send(json.dumps({'success': False, 'status': 3, 'info': 'Malformed message contents'}))
                             legitimate = False
                         else:
                             legitimate = game.raise_bet(message['raise_quantity'])
+                            play_made = "raised"
                 
-                # If played 3 illigitimate moves, fold.
                 if not legitimate:
                     if game.state.checking_or_calling_amount == 0:
                         game.call()
+                        play_made = "called"
                     else:
                         game.fold()
+                        play_made = "folded"
+                
+                await broadcast_to_all(
+                    game.get_player_ids(),
+                    json.dumps({
+                        'success' : True,
+                        'type' : 'game',
+                        'status' : 3,
+                        'info' : 'Play has been made',
+                        'player' : game.get_player_seat_from_id(user),
+                        'pot' : game.pot,
+                        'play' : play_made,
+                        'current_bet' : game.state.checking_or_calling_amount
+                    })
+                )
 
                 game_over = False
                 while not game.state.status:
+                    print("End of hand.")
                     eliminated, winner = game.end_round()
 
                     # Handle all eliminated players
@@ -234,7 +253,7 @@ async def handle_request_receive(websocket, db):
                         for player_id in game.players_id_persistent:
                             await db.execute("INSERT INTO bots_games VALUES (?, ?)", (game_id, player_id))
                         await db.commit()
-                        
+
                         del games[game.id]
                         game_over = True
                         await sessions[winner].socket.send(json.dumps({'success': True, 'status': 5, 'type' : 'game', 'info' : f'Your bot has won!'}))
@@ -247,11 +266,12 @@ async def handle_request_receive(websocket, db):
     finally:
         # If condition here for being currently in-game - if so, eliminate player from game and communism their chips for next round.
         if user in sessions:
-            game = games[sessions[user].current_game]
-            game.eliminate_and_distribute(user)
+            if sessions[user].current_game != -1:
+                game = games[sessions[user].current_game]
+                game.eliminate_and_distribute(user)
             del sessions[user]
-        if user in queue:
-            del queue[queue.index(user)]
+            if user in queue:
+                del queue[queue.index(user)]
 
 async def main():
     # Setup and connect to DB
